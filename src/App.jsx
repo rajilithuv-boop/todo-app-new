@@ -1,71 +1,81 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, Circle, CircleCheck, CircleX, Clock3, FileCheck2, House, List, ListTodo, Menu, Plus, Search, Settings as SettingsIcon, Target, UserRound, X, Pencil, Trash2, BarChart3 } from 'lucide-react';
-import { TodoProvider, useTodos } from './context/TodoContext';
-import { STATUSES } from './data';
-import './App.css';
-import TaskModal from './components/TaskModal';
-import TaskTable, { formatDate } from './components/TaskTable';
-import StatusBadge from './components/Statusbadge';
+import React, {
+  useCallback,
+  useState,
+} from "react";
 
-const navItems = [
-  { label: 'Home', to: '/', icon: House }, { label: 'To Do List', to: '/tasks', icon: List },
-  { label: 'In Progress', to: '/in-progress', icon: Clock3, status: 'In Progress' }, { label: 'Finished', to: '/finished', icon: CircleCheck, status: 'Finished' },
-  { label: 'Cancelled', to: '/cancelled', icon: CircleX, status: 'Cancelled' }, { label: 'Profile', to: '/profile', icon: UserRound, divider: true }, { label: 'Settings', to: '/settings', icon: SettingsIcon },
-]
-const statMeta = {
-  'To Do': { icon: Circle, hint: 'Ready when you are', color: 'blue' }, 'In Progress': { icon: Clock3, hint: 'Currently working', color: 'amber' },
-  Finished: { icon: CheckCircle2, hint: 'Completed tasks', color: 'green' }, Cancelled: { icon: CircleX, hint: 'No longer active', color: 'red' },
-}
-function useStoredTheme() {
-  const [dark, setDark] = useState(() => localStorage.getItem('blue-todo-dark') === 'true')
-  useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; localStorage.setItem('blue-todo-dark', String(dark)) }, [dark])
-  return [dark, setDark]
-}
-function AppShell() {
-  const { tasks, addTask, updateTask, deleteTask } = useTodos()
-  const [globalSearch, setGlobalSearch] = useState('')
-  const [modalTask, setModalTask] = useState(undefined)
-  const [mobileNav, setMobileNav] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [dark, setDark] = useStoredTheme()
-  const searchRef = useRef(null)
-  const location = useLocation()
-  const navigate = useNavigate()
-  const counts = useMemo(() => Object.fromEntries(STATUSES.map(status => [status, tasks.filter(task => task.status === status).length])), [tasks])
-  const openCreate = useCallback(() => setModalTask(null), [])
-  const saveTask = useCallback(task => { if (task.id) updateTask(task); else addTask(task); setModalTask(undefined) }, [addTask, updateTask])
-  const askDelete = useCallback(task => { if (window.confirm(`Delete “${task.title}”?`)) deleteTask(task.id) }, [deleteTask])
-  useEffect(() => { setMobileNav(false) }, [location.pathname])
-  useEffect(() => { const handler = event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); searchRef.current?.focus() } }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler) }, [])
-  return <div className="app-shell">
-    <header className="topbar"><button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setMobileNav(true)}><Menu /></button><NavLink to="/" className="brand"><span>To Do</span> App</NavLink><label className="global-search"><Search size={21} /><input ref={searchRef} value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && navigate('/tasks')} placeholder="Search tasks, status, or keywords..."/><kbd>⌘ K</kbd></label><div className="top-actions"><div className="popover-wrap"><button className="icon-button notification-button" aria-label="Notifications" onClick={() => setNotificationsOpen(v => !v)}><Bell size={22}/>{tasks.some(task => task.status === 'To Do') && <i/>}</button>{notificationsOpen && <div className="popover notification-popover"><strong>Notifications</strong><p>You have {counts['To Do']} tasks ready to get started.</p><button onClick={() => { setNotificationsOpen(false); navigate('/tasks') }}>View tasks</button></div>}</div><button className="user-menu" onClick={() => setMenuOpen(v => !v)}><img src="https://i.pravatar.cc/80?img=12" alt="Vijay Srinivas"/><span>Vijay Srinivas</span><ChevronDown size={17}/></button>{menuOpen && <div className="popover profile-popover"><button onClick={() => { setMenuOpen(false); navigate('/profile') }}><UserRound size={16}/> Profile</button><button onClick={() => { setMenuOpen(false); navigate('/settings') }}><SettingsIcon size={16}/> Settings</button></div>}</div></header>
-    {mobileNav && <button className="drawer-scrim" aria-label="Close navigation" onClick={() => setMobileNav(false)}/>}
-    <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><nav aria-label="Main navigation">{navItems.map((item, index) => { const Icon = item.icon; return <div className={item.divider ? 'nav-divider' : ''} key={item.to}><NavLink end={item.to === '/'} to={item.to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''} ${item.status ? `nav-${item.status.toLowerCase().replace(' ', '-')}` : ''}`}><span className="nav-icon"><Icon size={21} strokeWidth={2.3}/></span><span>{item.label}</span>{item.status && counts[item.status] > 0 && <small>{counts[item.status]}</small>}</NavLink></div> })}</nav><div className="sidebar-bottom"><div className="sidebar-tip"><span><Target size={18}/></span><p><b>Make today count</b><br/>One task at a time.</p></div><span className="version-label">TO DO APP · 1.0</span></div></aside>
-    <main className="main-content"><Routes><Route path="/" element={<HomePage tasks={tasks} counts={counts} onAdd={openCreate} onEdit={setModalTask} onDelete={askDelete} onViewAll={() => navigate('/tasks')}/>} /><Route path="/tasks" element={<TaskPage title="To Do List" description="Manage your tasks, track progress, and stay productive." tasks={tasks} initialSearch={globalSearch} onAdd={openCreate} onEdit={setModalTask} onDelete={askDelete}/>} />{STATUSES.slice(1).map(status => <Route key={status} path={`/${status.toLowerCase().replace(' ', '-')}`} element={<TaskPage title={status} description={status === 'In Progress' ? 'Keep your momentum going and move work forward.' : status === 'Finished' ? 'Look back on everything you have accomplished.' : 'Tasks that are no longer part of your plan.'} tasks={tasks.filter(task => task.status === status)} filter={status} initialSearch={globalSearch} onAdd={openCreate} onEdit={setModalTask} onDelete={askDelete}/>} />)}<Route path="/profile" element={<ProfilePage tasks={tasks} counts={counts}/>} /><Route path="/settings" element={<SettingsPage dark={dark} setDark={setDark}/>} /><Route path="*" element={<Navigate to="/" replace/>}/></Routes></main>
-    {modalTask !== undefined && <TaskModal task={modalTask || undefined} onClose={() => setModalTask(undefined)} onSave={saveTask}/>} 
-  </div>
-}
-function PageHeader({ title, description, onAdd }) { return <div className="page-heading"><div><div className="eyebrow">YOUR WORKSPACE</div><h1>{title}</h1><p>{description}</p></div>{onAdd && <button className="button button-primary add-button" onClick={onAdd}><Plus size={21}/> Add To Do</button>}</div> }
-function StatCard({ title, count, hint, color, icon: Icon }) { return <article className="stat-card card"><span className={`stat-icon ${color}`}><Icon size={26} strokeWidth={2.4}/></span><div className="stat-copy"><span>{title}</span><strong>{count}</strong><small>{hint}</small></div></article> }
-function StatsGrid({ counts, dashboard = false }) { const items = dashboard ? [{ title: 'Total Tasks', count: Object.values(counts).reduce((a, b) => a + b, 0), hint: 'Across your workspace', color: 'blue', icon: ListTodo }, ...STATUSES.slice(1).map(status => ({ title: status, count: counts[status], hint: statMeta[status].hint, color: statMeta[status].color, icon: statMeta[status].icon }))] : STATUSES.map(status => ({ title: status, count: counts[status], hint: statMeta[status].hint, color: statMeta[status].color, icon: statMeta[status].icon })); return <div className="stats-grid">{items.map(item => <StatCard key={item.title} {...item}/>)}</div> }
-function HeroIllustration() { return <div className="hero-illustration" aria-hidden="true"><span className="hero-orbit orbit-one"/><span className="hero-orbit orbit-two"/><div className="plant"><i/><i/><i/><span/></div><div className="hero-paper"><div className="paper-check"><Check size={20}/></div><i/><i className="short-line"/><div className="paper-check"><Check size={20}/></div><i/><i className="short-line"/><div className="paper-empty"/><i/><i className="short-line"/></div><div className="calendar-art"><div/><span></span><span>□</span><span>□</span><span>□</span></div><div className="clock-art"><Clock3 size={40}/></div></div> }
-function HomePage({ tasks, counts, onAdd, onEdit, onDelete, onViewAll }) {
- const recent = useMemo(() => [...tasks].sort((a,b) => a.dueDate.localeCompare(b.dueDate)).slice(0,5), [tasks])
- return <><section className="hero-card"><div className="hero-copy"><span className="eyebrow">WELCOME TO</span><h1><span>To Do</span> App</h1><p>Organize your tasks, track progress, and stay productive every day.</p><div className="hero-benefits"><span><i className="benefit-icon benefit-blue"><Target/></i><b>Plan<br/><small>your tasks</small></b></span><span><i className="benefit-icon benefit-amber"><Clock3/></i><b>Track<br/><small>progress</small></b></span><span><i className="benefit-icon benefit-green"><BarChart3/></i><b>Stay<br/><small>productive</small></b></span><span><i className="benefit-icon benefit-red"><CalendarDays/></i><b>Meet<br/><small>your deadlines</small></b></span></div></div><HeroIllustration/></section>
-   <StatsGrid counts={counts} dashboard/>
-   <div className="dashboard-panels"><section className="how-card card"><div className="panel-heading"><BookOpen size={24}/><h2>How It Works</h2></div><p className="panel-subtitle">Follow these simple steps to manage your tasks effectively.</p><div className="steps-list">{[{n:'1',title:'Add a To Do',text:'Create a task with a title, description, and due date.',icon:FileCheck2,color:'blue'},{n:'2',title:'Track Progress',text:'Move tasks to In Progress when work begins.',icon:Clock3,color:'amber'},{n:'3',title:'Mark as Finished',text:'Celebrate when your task is complete.',icon:Check,color:'green'},{n:'4',title:'Cancel if Needed',text:'Update a task to Cancelled if plans change.',icon:X,color:'red'}].map(step => {const Icon=step.icon; return <div className="step" key={step.n}><span className={`step-number ${step.color}`}>{step.n}</span><span className={`step-icon ${step.color}`}><Icon size={22}/></span><div><b>{step.title}</b><small>{step.text}</small></div></div>})}</div></section>
-   <section className="recent-card card"><div className="recent-heading"><div className="panel-heading"><Clock3 size={24}/><h2>Recent Tasks</h2></div><button onClick={onViewAll}>View All</button></div>{recent.length ? recent.map(task => <article className="recent-row" key={task.id}><i className={`recent-dot dot-${task.status.toLowerCase().replace(' ', '-')}`}/><div className="recent-name"><b>{task.title}</b><small>{task.description}</small></div><time>{formatDate(task.dueDate)}</time><StatusBadge status={task.status}/></article>) : <div className="recent-empty"><ListTodo size={30}/><b>No tasks yet</b><span>Add your first task to get started.</span></div>}</section></div>
- </>
-}
-function TaskPage({ title, description, tasks, filter, initialSearch, onAdd, onEdit, onDelete }) {
- const counts = useMemo(() => Object.fromEntries(STATUSES.map(status => [status, tasks.filter(task => task.status === status).length])), [tasks])
- return <><PageHeader title={title} description={description} onAdd={onAdd}/>{filter ? <div className="filter-summary card"><span className={`stat-icon ${statMeta[filter].color}`}><BarChart3 size={21}/></span><div><strong>{tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}</strong><small> currently marked as <StatusBadge status={filter}/></small></div></div> : <><section className="explainer card"><div className="explainer-art"><span><ListTodo size={62}/><Clock3 size={26}/></span></div><div className="explainer-copy"><h2>How it works?</h2><p>Create tasks, set due dates, and track their progress. Each task can be in one of the following statuses:</p><div className="status-guide">{STATUSES.map(status => <div key={status}><span className={`guide-dot ${statMeta[status].color}`}><i/></span><p><b>{status}</b><small>{status === 'To Do' ? 'Created and not started yet' : status === 'In Progress' ? 'Currently being worked on' : status === 'Finished' ? 'The task is completed' : 'No longer needs to be done'}</small></p></div>)}</div></div></section><StatsGrid counts={counts}/></>}
- <TaskTable tasks={tasks} initialSearch={initialSearch} onEdit={onEdit} onDelete={onDelete}/></>
-}
-function ProfilePage({ tasks, counts }) { const done = tasks.length ? Math.round(counts.Finished / tasks.length * 100) : 0; return <><PageHeader title="Profile" description="Your personal productivity at a glance."/><section className="profile-card card"><div className="profile-cover"/><div className="profile-main"><img src="https://i.pinimg.com/236x/97/8a/cc/978accf93214ab74aeb1cb8319026bf1.jpg?nii=t" alt="Raji.R"/><div><h2>Raji.R</h2><p>Productivity enthusiast</p><span className="profile-member"><CheckCircle2 size={15}/> Member since September 2026</span></div></div><div className="profile-stats"><div><b>{tasks.length}</b><span>Total tasks</span></div><div><b>{counts.Finished}</b><span>Finished</span></div><div><b>{done}%</b><span>Completion rate</span></div></div></section><section className="card profile-note"><Target size={23}/><div><b>Small steps add up.</b><p>You have completed {counts.Finished} {counts.Finished === 1 ? 'task' : 'tasks'} so far. Keep building your momentum one task at a time.</p></div></section></> }
-function SettingsPage({ dark, setDark }) { return <><PageHeader title="Settings" description="Make your workspace feel right for you."/><section className="settings-card card"><div className="settings-title"><SettingsIcon size={23}/><div><h2>Appearance</h2><p>Choose how your workspace looks.</p></div></div><label className="setting-row"><span><b>Dark mode</b><small>Use a darker color scheme across the app.</small></span><input type="checkbox" className="switch" checked={dark} onChange={e => setDark(e.target.checked)}/></label><div className="settings-title"><Bell size={22}/><div><h2>Task reminders</h2><p>Your due dates stay visible in each task list.</p></div></div><div className="setting-row static-setting"><span><b>Local storage</b><small>Your tasks are saved in this browser on this device.</small></span><span className="saved-pill"><CheckCircle2 size={16}/> On</span></div></section></> }
-export default function App() { return <TodoProvider><BrowserRouter><AppShell /></BrowserRouter></TodoProvider> 
+import Sidebar from "./components/Sidebar";
+import Header from "./components/Header";
+import Dashboard from "./components/Dashboard";
+import TodoList from "./components/TodoList";
+import Profile from "./components/Profile";
 
+function App() {
+
+  const [page, setPage] = useState("Home");
+  const [search, setSearch] = useState("");
+
+  const changePage = useCallback((newPage) => {
+    setPage(newPage);
+  }, []);
+
+
+  function renderPage() {
+
+    switch (page) {
+
+      case "Home":
+        return <Dashboard />;
+
+      case "To Do List":
+        return <TodoList filter="All" />;
+
+      case "In Progress":
+        return <TodoList filter="In Progress" />;
+
+      case "Finished":
+        return <TodoList filter="Finished" />;
+
+      case "Cancelled":
+        return <TodoList filter="Cancelled" />;
+
+      case "Profile":
+        return <Profile />;
+
+      case "Settings":
+        return (
+          <div className="content">
+            <h1>Settings</h1>
+            <p>Application settings</p>
+          </div>
+        );
+
+      default:
+        return <Dashboard />;
+    }
+  }
+
+
+  return (
+    <div className="app">
+
+      <Sidebar
+        page={page}
+        setPage={changePage}
+      />
+
+      <main className="main">
+
+        <Header
+          search={search}
+          setSearch={setSearch}
+        />
+
+        {renderPage()}
+
+      </main>
+
+    </div>
+  );
 }
+
+export default App;

@@ -1,31 +1,103 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
-import { SEED_TASKS } from '../data';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useReducer,
+} from "react";
 
-const TodoContext = createContext(null)
-const STORAGE_KEY = 'blue-todo-tasks-v1'
-function readTasks() {
-  try { const value = JSON.parse(localStorage.getItem(STORAGE_KEY)); return Array.isArray(value) ? value : SEED_TASKS }
-  catch { return SEED_TASKS }
-}
-function reducer(state, action) {
+const TodoContext = createContext();
+
+const initialTasks = [
+  {
+    id: 1,
+    title: "Learn MongoDB",
+    description: "Study basic CRUD operations",
+    dueDate: "2026-09-25",
+    status: "To Do",
+  },
+  {
+    id: 2,
+    title: "Build To Do App",
+    description: "Create a React To Do application",
+    dueDate: "2026-09-28",
+    status: "In Progress",
+  },
+  {
+    id: 3,
+    title: "Complete Project",
+    description: "Finish and deploy the project",
+    dueDate: "2026-09-30",
+    status: "Finished",
+  },
+  {
+    id: 4,
+    title: "Write Documentation",
+    description: "Add README and usage guide",
+    dueDate: "2026-10-02",
+    status: "Cancelled",
+  },
+  {
+    id: 5,
+    title: "Prepare Presentation",
+    description: "Create slides for final review",
+    dueDate: "2026-10-05",
+    status: "To Do",
+  },
+];
+
+function todoReducer(state, action) {
   switch (action.type) {
-    case 'add': return [action.task, ...state]
-    case 'update': return state.map(task => task.id === action.task.id ? action.task : task)
-    case 'delete': return state.filter(task => task.id !== action.id)
-    default: return state
+    case "ADD_TASK":
+      return [...state, action.payload];
+
+    case "DELETE_TASK":
+      return state.filter((task) => task.id !== action.payload);
+
+    case "UPDATE_TASK":
+      return state.map((task) =>
+        task.id === action.payload.id
+          ? action.payload
+          : task
+      );
+
+    case "CHANGE_STATUS":
+      return state.map((task) =>
+        task.id === action.payload.id
+          ? {
+              ...task,
+              status: action.payload.status,
+            }
+          : task
+      );
+
+    default:
+      return state;
   }
 }
+
 export function TodoProvider({ children }) {
-  const [tasks, dispatch] = useReducer(reducer, undefined, readTasks)
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)) }, [tasks])
-  const addTask = useCallback(task => dispatch({ type: 'add', task: { ...task, id: crypto.randomUUID() } }), [])
-  const updateTask = useCallback(task => dispatch({ type: 'update', task }), [])
-  const deleteTask = useCallback(id => dispatch({ type: 'delete', id }), [])
-  const value = useMemo(() => ({ tasks, addTask, updateTask, deleteTask }), [tasks, addTask, updateTask, deleteTask])
-  return <TodoContext.Provider value={value}>{children}</TodoContext.Provider>
+  const [tasks, dispatch] = useReducer(
+    todoReducer,
+    initialTasks,
+    (initial) => {
+      const saved = localStorage.getItem("todoTasks");
+
+      return saved ? JSON.parse(saved) : initial;
+    }
+  );
+
+  // Save tasks
+  useEffect(() => {
+    localStorage.setItem("todoTasks", JSON.stringify(tasks));
+  }, [tasks]);
+
+  return (
+    <TodoContext.Provider value={{ tasks, dispatch }}>
+      {children}
+    </TodoContext.Provider>
+  );
 }
-export function useTodos() {
-  const context = useContext(TodoContext)
-  if (!context) throw new Error('useTodos must be used inside TodoProvider')
-  return context
+
+export function useTodoContext() {
+  return useContext(TodoContext);
 }
